@@ -1,0 +1,165 @@
+{
+  "name": "oai-provider",
+  "displayName": "OAIProvider – OpenAI-Compatible Copilot Models",
+  "description": "Connect any OpenAI-compatible API (NVIDIA NIM, Ollama, LM Studio, vLLM…) to GitHub Copilot Chat as a first-class language model provider.",
+  "version": "0.1.0",
+  "publisher": "calgan",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/calganaygun/copilot-oai-provider"
+  },
+  "engines": {
+    "vscode": "^1.99.0"
+  },
+  "categories": [
+    "AI",
+    "Other"
+  ],
+  "keywords": [
+    "copilot",
+    "oai",
+    "openai",
+    "language model",
+    "nvidia",
+    "nim",
+    "ollama",
+    "lm studio",
+    "vllm",
+    "ai"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "languageModelChatProviders": [
+      {
+        "vendor": "openai-compat-provider",
+        "displayName": "OAIProvider",
+        "managementCommand": "openai-compat-provider.manage"
+      }
+    ],
+    "commands": [
+      {
+        "command": "openai-compat-provider.manage",
+        "title": "Manage Providers",
+        "category": "OAIProvider",
+        "icon": "$(settings-gear)"
+      },
+      {
+        "command": "openai-compat-provider.addProvider",
+        "title": "Add Provider",
+        "category": "OAIProvider",
+        "icon": "$(add)"
+      },
+      {
+        "command": "openai-compat-provider.removeProvider",
+        "title": "Remove Provider",
+        "category": "OAIProvider",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "openai-compat-provider.addModel",
+        "title": "Add Model",
+        "category": "OAIProvider",
+        "icon": "$(add)"
+      },
+      {
+        "command": "openai-compat-provider.removeModel",
+        "title": "Remove Model",
+        "category": "OAIProvider",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "openai-compat-provider.listProviders",
+        "title": "List Providers",
+        "category": "OAIProvider",
+        "icon": "$(list-unordered)"
+      }
+    ],
+    "configuration": {
+      "title": "OAIProvider",
+      "properties": {
+        "openai-compat-provider.providers": {
+          "type": "array",
+          "default": [],
+          "description": "List of configured OpenAI-compatible providers.",
+          "items": {
+            "type": "object",
+            "required": ["id", "displayName", "baseUrl"],
+            "properties": {
+              "id": {
+                "type": "string",
+                "description": "Unique identifier for this provider (used internally, no spaces)"
+              },
+              "displayName": {
+                "type": "string",
+                "description": "Human-readable name for this provider"
+              },
+              "baseUrl": {
+                "type": "string",
+                "description": "Base URL of the OpenAI-compatible API endpoint (e.g. https://integrate.api.nvidia.com/v1)"
+              },
+              "apiKey": {
+                "type": "string",
+                "default": "",
+                "description": "API key for authentication (leave empty if not required)"
+              },
+              "models": {
+                "type": "array",
+                "default": [],
+                "description": "List of models available from this provider",
+                "items": {
+                  "type": "object",
+                  "required": ["id", "name"],
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "description": "Model ID as expected by the API (e.g. nvidia/llama-3.1-nemotron-ultra-253b-v1)"
+                    },
+                    "name": {
+                      "type": "string",
+                      "description": "Human-readable name shown in the model picker"
+                    },
+                    "maxInputTokens": {
+                      "type": "number",
+                      "default": 128000,
+                      "description": "Maximum input context tokens"
+                    },
+                    "maxOutputTokens": {
+                      "type": "number",
+                      "default": 4096,
+                      "description": "Maximum output tokens"
+                    },
+                    "supportsToolCalling": {
+                      "type": "boolean",
+                      "default": true,
+                      "description": "Whether the model supports tool/function calling"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "pretest": "npm run compile",
+    "test": "node ./out/test/runTest.js",
+    "lint": "eslint src"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/vscode": "^1.99.0",
+    "@typescript-eslint/eslint-plugin": "^8.0.0",
+    "@typescript-eslint/parser": "^8.0.0",
+    "eslint": "^9.0.0",
+    "typescript": "^5.0.0"
+  }
+}
