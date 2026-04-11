@@ -2,7 +2,7 @@
   "name": "oai-provider",
   "displayName": "OAIProvider – OpenAI-Compatible Copilot Models",
   "description": "Connect any OpenAI-compatible API (NVIDIA NIM, Ollama, LM Studio, vLLM…) to GitHub Copilot Chat as a first-class language model provider.",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "publisher": "calgan",
   "license": "MIT",
   "repository": {

@@ -93,7 +93,7 @@ export class OpenAICompatChatProvider implements vscode.LanguageModelChatProvide
   async provideLanguageModelChatResponse(
     model: vscode.LanguageModelChatInformation,
     messages: readonly vscode.LanguageModelChatRequestMessage[],
-    _options: vscode.ProvideLanguageModelChatResponseOptions,
+    options: vscode.ProvideLanguageModelChatResponseOptions,
     progress: vscode.Progress<vscode.LanguageModelResponsePart>,
     token: vscode.CancellationToken
   ): Promise<void> {
@@ -112,12 +112,26 @@ export class OpenAICompatChatProvider implements vscode.LanguageModelChatProvide
 
     // ── 3. Build the fetch request ─────────────────────────────────────────
     const requestUrl = `${provider.baseUrl}/chat/completions`;
-    const requestBody = JSON.stringify({
+    const requestBody: any = {
       model: modelId,
       messages: apiMessages,
       stream: true,           // Request streaming SSE responses
       max_tokens: model.maxOutputTokens,
-    });
+    };
+
+    if (options.tools && options.tools.length > 0) {
+      requestBody.tools = options.tools.map(t => ({
+        type: 'function',
+        function: {
+          name: t.name,
+          description: t.description,
+          parameters: t.inputSchema
+        }
+      }));
+      if (options.toolMode === vscode.LanguageModelChatToolMode.Required) {
+        requestBody.tool_choice = 'auto';
+      }
+    }
 
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
@@ -137,7 +151,7 @@ export class OpenAICompatChatProvider implements vscode.LanguageModelChatProvide
       const response = await fetch(requestUrl, {
         method: 'POST',
         headers,
-        body: requestBody,
+        body: JSON.stringify(requestBody),
         signal: abortController.signal,
       });
 
@@ -180,9 +194,9 @@ export class OpenAICompatChatProvider implements vscode.LanguageModelChatProvide
     const str = typeof text === 'string'
       ? text
       : text.content
-          .filter((p): p is vscode.LanguageModelTextPart => p instanceof vscode.LanguageModelTextPart)
-          .map(p => p.value)
-          .join('');
+        .filter((p): p is vscode.LanguageModelTextPart => p instanceof vscode.LanguageModelTextPart)
+        .map(p => p.value)
+        .join('');
     return Math.ceil(str.length / 4);
   }
 
@@ -206,33 +220,83 @@ export class OpenAICompatChatProvider implements vscode.LanguageModelChatProvide
   }
 
   /**
-   * Convert VS Code LanguageModelChatRequestMessage[] to the OpenAI messages array.
-   *
-   * VS Code message roles:
-   *   - LanguageModelChatMessageRole.User   → "user"
-   *   - LanguageModelChatMessageRole.Assistant → "assistant"
-   *
-   * Content parts:
-   *   - LanguageModelTextPart  → plain text content
-   *   - LanguageModelToolCallPart / LanguageModelToolResultPart → ignored for now
-   *     (tool calling is handled by VS Code itself when the model capability is enabled)
+   * Convert VS Code LanguageModelChatRequestMessage[] to the OpenAI messages array,
+   * including handling of ToolCalls and ToolResults.
    */
   private convertMessages(
     messages: readonly vscode.LanguageModelChatRequestMessage[]
-  ): Array<{ role: string; content: string }> {
-    return messages.flatMap(msg => {
-      // Concatenate all text parts in the message
-      const content = msg.content
-        .filter((p): p is vscode.LanguageModelTextPart => p instanceof vscode.LanguageModelTextPart)
-        .map(p => p.value)
-        .join('');
+  ): Array<any> {
+    const result: any[] = [];
+    const toolCallIdToName: Record<string, string> = {};
 
-      // Skip empty messages
-      if (!content.trim()) { return []; }
-
+    for (const msg of messages) {
       const role = msg.role === vscode.LanguageModelChatMessageRole.User ? 'user' : 'assistant';
-      return [{ role, content }];
-    });
+
+      let textContent = '';
+      const toolCalls: any[] = [];
+      const toolResults: any[] = [];
+
+      for (const part of msg.content) {
+        if (part instanceof vscode.LanguageModelTextPart) {
+          textContent += part.value;
+        } else if (part instanceof vscode.LanguageModelToolCallPart) {
+          toolCallIdToName[part.callId] = part.name;
+          toolCalls.push({
+            id: part.callId,
+            type: 'function',
+            function: {
+              name: part.name,
+              arguments: typeof part.input === 'string' ? part.input : JSON.stringify(part.input)
+            }
+          });
+        } else if (part instanceof vscode.LanguageModelToolResultPart) {
+          let resultStr = '';
+          for (const resPart of part.content) {
+            if (resPart instanceof vscode.LanguageModelTextPart) {
+              resultStr += resPart.value;
+            } else if (typeof resPart === 'string') {
+              resultStr += resPart;
+            } else {
+              try { resultStr += JSON.stringify(resPart); } catch { }
+            }
+          }
+          const tr: any = {
+            role: 'tool',
+            tool_call_id: part.callId,
+            content: resultStr || 'Success'
+          };
+          if (toolCallIdToName[part.callId]) {
+            tr.name = toolCallIdToName[part.callId];
+          }
+          toolResults.push(tr);
+        }
+      }
+
+      if (toolResults.length > 0) {
+        for (const tr of toolResults) {
+          result.push(tr);
+        }
+      }
+
+      if (textContent || toolCalls.length > 0 || toolResults.length === 0) {
+        const apiMsg: any = { role, content: textContent || null };
+        if (toolCalls.length > 0) {
+          apiMsg.tool_calls = toolCalls;
+        }
+        // Avoid pushing empty assistant messages unless necessary or if no toolResults were mapped
+        if (textContent || toolCalls.length > 0 || msg.role === vscode.LanguageModelChatMessageRole.User) {
+          // Only skip empty assistant messages
+          if (toolResults.length === 0 || textContent || toolCalls.length > 0) {
+            if (msg.role !== vscode.LanguageModelChatMessageRole.User || toolResults.length === 0) {
+              result.push(apiMsg);
+            } else if (msg.role === vscode.LanguageModelChatMessageRole.User && textContent) {
+              result.push(apiMsg);
+            }
+          }
+        }
+      }
+    }
+    return result;
   }
 
   /**
@@ -252,6 +316,8 @@ export class OpenAICompatChatProvider implements vscode.LanguageModelChatProvide
     const reader = body.getReader();
     const decoder = new TextDecoder();
     let buffer = '';
+
+    const activeToolCalls: Record<number, { id: string; name: string; arguments: string }> = {};
 
     try {
       while (true) {
@@ -281,10 +347,22 @@ export class OpenAICompatChatProvider implements vscode.LanguageModelChatProvide
 
           try {
             const chunk: OpenAIStreamChunk = JSON.parse(data);
-            const content = chunk.choices?.[0]?.delta?.content;
-            if (content) {
+            const delta = chunk.choices?.[0]?.delta;
+
+            if (delta?.content) {
               // Report each text fragment back to VS Code / Copilot Chat
-              progress.report(new vscode.LanguageModelTextPart(content));
+              progress.report(new vscode.LanguageModelTextPart(delta.content));
+            }
+            if (delta?.tool_calls) {
+              for (const tc of delta.tool_calls) {
+                const idx = tc.index;
+                if (!activeToolCalls[idx]) {
+                  activeToolCalls[idx] = { id: tc.id || `call_${idx}`, name: tc.function?.name || '', arguments: '' };
+                }
+                if (tc.function?.arguments) {
+                  activeToolCalls[idx].arguments += tc.function.arguments;
+                }
+              }
             }
           } catch {
             // Malformed JSON line – skip it silently; don't break the stream
@@ -292,6 +370,15 @@ export class OpenAICompatChatProvider implements vscode.LanguageModelChatProvide
         }
       }
     } finally {
+      // Flush buffered tool calls
+      for (const key of Object.keys(activeToolCalls)) {
+        const tc = activeToolCalls[Number(key)];
+        let inputObj = {};
+        if (tc.arguments) {
+          try { inputObj = JSON.parse(tc.arguments); } catch { }
+        }
+        progress.report(new vscode.LanguageModelToolCallPart(tc.id, tc.name, inputObj));
+      }
       // Ensure the reader is always released
       reader.releaseLock();
     }

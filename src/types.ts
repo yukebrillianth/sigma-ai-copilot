@@ -45,6 +45,15 @@ export interface OpenAIStreamChunk {
     delta: {
       role?: string;
       content?: string;
+      tool_calls?: Array<{
+        index: number;
+        id?: string;
+        type?: string;
+        function?: {
+           name?: string;
+           arguments?: string;
+        };
+      }>;
     };
     finish_reason: string | null;
   }>;

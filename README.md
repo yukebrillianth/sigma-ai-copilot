@@ -1,6 +1,6 @@
 # OAIProvider — OpenAI-Compatible Models in GitHub Copilot Chat
 
-[![VS Code Marketplace](https://img.shields.io/badge/VS%20Code-Marketplace-blue?logo=visualstudiocode)](https://marketplace.visualstudio.com)
+[![VS Code Marketplace](https://img.shields.io/visual-studio-marketplace/v/calgan.oai-provider?label=VS%20Code%20Marketplace&logo=visualstudiocode&color=blue)](https://marketplace.visualstudio.com/items?itemName=calgan.oai-provider)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
 **OAIProvider** is a VS Code extension that connects any **OpenAI-compatible API endpoint** to **GitHub Copilot Chat** as a fully integrated language model provider — using the official VS Code `LanguageModelChatProvider` API.
@@ -34,14 +34,20 @@ Use it to bring models from **NVIDIA NIM**, **Ollama**, **LM Studio**, **vLLM**,
 
 ### 1 — Install the extension
 
-**Download & install (recommended):**
+**From the VS Code Marketplace (recommended):**
 
-1. Go to [**Releases**](https://github.com/calganaygun/copilot-oai-provider/releases/latest) and download `oai-provider-x.x.x.vsix`
+1. Open VS Code and go to the [**OAIProvider**](https://marketplace.visualstudio.com/items?itemName=calgan.oai-provider) page, or search for **OAIProvider** in the Extensions panel (`⇧⌘X`)
+2. Click **Install**
+3. Reload VS Code (`⇧⌘P` → **Developer: Reload Window**)
+
+**From a VSIX file:**
+
+1. Download `oai-provider-x.x.x.vsix` from [**Releases**](https://github.com/calganaygun/copilot-oai-provider/releases/latest)
 2. Run in your terminal:
 ```bash
-code --install-extension oai-provider-0.1.0.vsix
+code --install-extension oai-provider-x.x.x.vsix
 ```
-3. Reload VS Code (`⇧⌘P` → **Developer: Reload Window**)
+3. Reload VS Code
 
 **From source:**
 ```bash
@@ -73,16 +79,16 @@ OAIProvider: Add Model
 ```
 
 1. Pick the provider you just created
-2. Enter the **Model ID** as the API expects (e.g. `nvidia/llama-3.1-nemotron-ultra-253b-v1`)
-3. Enter a **Display Name** shown in the Copilot picker (e.g. `Nemotron Ultra 253B`)
-4. Set **max input tokens** (e.g. `128000`)
+2. Enter the **Model ID** as the API expects (e.g. `moonshotai/kimi-k2.5`)
+3. Enter a **Display Name** shown in the Copilot picker (e.g. `Kimi K2.5`)
+4. Set **max input tokens** (e.g. `131072`)
 5. Choose whether the model supports **tool calling**
 
 ### 4 — Use in Copilot Chat
 
 Open Copilot Chat → click the **model picker** → your model appears as:
 
-> `Nemotron Ultra 253B (NVIDIA NIM)`
+> `Kimi K2.5 (NVIDIA NIM)`
 
 Send a message and enjoy streaming inference from your custom endpoint! 🎉
 
@@ -117,15 +123,15 @@ All data is stored in `openai-compat-provider.providers` in VS Code's global set
     "apiKey": "nvapi-xxxxxxxxxxxx",
     "models": [
       {
-        "id": "nvidia/llama-3.1-nemotron-ultra-253b-v1",
-        "name": "Nemotron Ultra 253B",
-        "maxInputTokens": 128000,
-        "maxOutputTokens": 4096,
+        "id": "moonshotai/kimi-k2.5",
+        "name": "Kimi K2.5",
+        "maxInputTokens": 131072,
+        "maxOutputTokens": 8192,
         "supportsToolCalling": true
       },
       {
-        "id": "meta/llama-3.1-8b-instruct",
-        "name": "Llama 3.1 8B Instruct",
+        "id": "nvidia/llama-3.1-nemotron-ultra-253b-v1",
+        "name": "Nemotron Ultra 253B",
         "maxInputTokens": 128000,
         "maxOutputTokens": 4096,
         "supportsToolCalling": true
