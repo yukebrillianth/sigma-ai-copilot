@@ -34,10 +34,14 @@ Use it to bring models from **NVIDIA NIM**, **Ollama**, **LM Studio**, **vLLM**,
 
 ### 1 — Install the extension
 
-**From VSIX (local install):**
+**Download & install (recommended):**
+
+1. Go to [**Releases**](https://github.com/calganaygun/copilot-oai-provider/releases/latest) and download `oai-provider-x.x.x.vsix`
+2. Run in your terminal:
 ```bash
 code --install-extension oai-provider-0.1.0.vsix
 ```
+3. Reload VS Code (`⇧⌘P` → **Developer: Reload Window**)
 
 **From source:**
 ```bash
@@ -45,7 +49,7 @@ git clone https://github.com/calganaygun/copilot-oai-provider.git
 cd copilot-oai-provider
 npm install
 npm run compile
-# Then press F5 inside VS Code to launch Extension Development Host
+# Press F5 inside VS Code to launch Extension Development Host
 ```
 
 ### 2 — Add a provider
