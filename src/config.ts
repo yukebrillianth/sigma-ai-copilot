@@ -6,7 +6,7 @@
  */
 
 import * as vscode from 'vscode';
-import { ProviderConfig, ModelConfig } from './types';
+import { ProviderConfig, ModelConfig, InlineCompletionConfig } from './types';
 
 /** The VS Code configuration section key */
 const CONFIG_SECTION = 'openai-compat-provider';
@@ -26,12 +26,15 @@ export function getProviders(): ProviderConfig[] {
     displayName: p.displayName,
     baseUrl: p.baseUrl.replace(/\/$/, ''), // trim trailing slash
     apiKey: p.apiKey ?? '',
+    defaultSystemPrompt: p.defaultSystemPrompt ?? '',
     models: (p.models ?? []).map(m => ({
       id: m.id,
       name: m.name,
       maxInputTokens: m.maxInputTokens ?? 128000,
       maxOutputTokens: m.maxOutputTokens ?? 4096,
       supportsToolCalling: m.supportsToolCalling ?? true,
+      supportsVision: m.supportsVision ?? false,
+      extraParams: m.extraParams ?? {},
     })),
   }));
 }
@@ -51,7 +54,8 @@ export async function addProvider(
   id: string,
   displayName: string,
   baseUrl: string,
-  apiKey: string
+  apiKey: string,
+  defaultSystemPrompt: string = ''
 ): Promise<ProviderConfig> {
   const providers = getProviders();
 
@@ -59,7 +63,7 @@ export async function addProvider(
     throw new Error(`A provider with id "${id}" already exists.`);
   }
 
-  const newProvider: ProviderConfig = { id, displayName, baseUrl, apiKey, models: [] };
+  const newProvider: ProviderConfig = { id, displayName, baseUrl, apiKey, defaultSystemPrompt, models: [] };
   providers.push(newProvider);
   await saveProviders(providers);
   return newProvider;
@@ -97,6 +101,22 @@ export async function addModel(providerId: string, model: ModelConfig): Promise<
 /**
  * Remove a model from a provider. Returns true if removed, false if not found.
  */
+export function getInlineCompletionConfig(): InlineCompletionConfig {
+  const config = vscode.workspace.getConfiguration(CONFIG_SECTION);
+  const raw = config.get<Partial<InlineCompletionConfig>>('inlineCompletion', {});
+  return {
+    enabled: raw.enabled ?? false,
+    providerId: raw.providerId ?? '',
+    modelId: raw.modelId ?? '',
+    maxTokens: raw.maxTokens ?? 256,
+    temperature: raw.temperature ?? 0.01,
+    stopSequences: raw.stopSequences ?? ['\n\n'],
+    debounceMs: raw.debounceMs ?? 300,
+    maxPrefixLines: raw.maxPrefixLines ?? 100,
+    maxSuffixLines: raw.maxSuffixLines ?? 30,
+  };
+}
+
 export async function removeModel(providerId: string, modelId: string): Promise<boolean> {
   const providers = getProviders();
   const provider = providers.find(p => p.id === providerId);

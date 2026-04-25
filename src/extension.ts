@@ -16,6 +16,7 @@
 import * as vscode from 'vscode';
 import { OpenAICompatChatProvider } from './provider';
 import { registerCommands } from './commands';
+import { OAIInlineCompletionProvider } from './inlineCompletion';
 
 /** The vendor ID must exactly match the "vendor" field in package.json contributes */
 const VENDOR_ID = 'openai-compat-provider';
@@ -37,6 +38,14 @@ export function activate(context: vscode.ExtensionContext): void {
 
   // ── 2. Register all management commands ──────────────────────────────────
   registerCommands(context);
+
+  // ── 2.5. Register inline completion provider ────────────────────────────
+  context.subscriptions.push(
+    vscode.languages.registerInlineCompletionItemProvider(
+      [{ pattern: '**' }],
+      new OAIInlineCompletionProvider()
+    )
+  );
 
   // ── 3. Watch for settings changes ────────────────────────────────────────
   //

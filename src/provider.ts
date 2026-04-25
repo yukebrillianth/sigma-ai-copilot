@@ -17,7 +17,7 @@
 
 import * as vscode from 'vscode';
 import { getProviders } from './config';
-import { OpenAIStreamChunk, ProviderConfig } from './types';
+import { ModelConfig, OpenAIStreamChunk, ProviderConfig } from './types';
 
 /** Separator between provider ID and model ID in the compound LM id */
 const ID_SEP = '::';
@@ -75,8 +75,10 @@ export class OpenAICompatChatProvider implements vscode.LanguageModelChatProvide
           maxOutputTokens: model.maxOutputTokens,
           detail: `via ${provider.baseUrl}`,
           tooltip: `Provider: ${provider.displayName}\nBase URL: ${provider.baseUrl}\nModel ID: ${model.id}`,
+          isUserSelectable: true,
           capabilities: {
             toolCalling: model.supportsToolCalling,
+            imageInput: model.supportsVision,
           },
         });
       }
@@ -99,7 +101,7 @@ export class OpenAICompatChatProvider implements vscode.LanguageModelChatProvide
   ): Promise<void> {
 
     // ── 1. Resolve the provider config from the compound model ID ──────────
-    const { provider, modelId } = this.resolveProvider(model.id);
+    const { provider, modelConfig, modelId } = this.resolveProvider(model.id);
     if (!provider) {
       throw new Error(
         `Provider not found for model "${model.id}". ` +
@@ -108,16 +110,23 @@ export class OpenAICompatChatProvider implements vscode.LanguageModelChatProvide
     }
 
     // ── 2. Convert VS Code messages → OpenAI message format ───────────────
-    const apiMessages = this.convertMessages(messages);
+    const apiMessages = this.convertMessages(messages, provider);
 
     // ── 3. Build the fetch request ─────────────────────────────────────────
     const requestUrl = `${provider.baseUrl}/chat/completions`;
-    const requestBody: any = {
+    const requestBody: Record<string, unknown> = {
       model: modelId,
       messages: apiMessages,
-      stream: true,           // Request streaming SSE responses
+      stream: true,
       max_tokens: model.maxOutputTokens,
+      ...modelConfig?.extraParams,
     };
+
+    if (options.modelOptions) {
+      for (const [key, value] of Object.entries(options.modelOptions)) {
+        requestBody[key] = value;
+      }
+    }
 
     if (options.tools && options.tools.length > 0) {
       requestBody.tools = options.tools.map(t => ({
@@ -208,37 +217,48 @@ export class OpenAICompatChatProvider implements vscode.LanguageModelChatProvide
    * Split the compound id back into its provider and model parts,
    * then look up the provider configuration.
    */
-  private resolveProvider(compoundId: string): { provider: ProviderConfig | undefined; modelId: string } {
+  private resolveProvider(compoundId: string): { provider: ProviderConfig | undefined; modelConfig: ModelConfig | undefined; modelId: string } {
     const sepIdx = compoundId.indexOf(ID_SEP);
     if (sepIdx === -1) {
-      return { provider: undefined, modelId: compoundId };
+      return { provider: undefined, modelConfig: undefined, modelId: compoundId };
     }
     const providerId = compoundId.substring(0, sepIdx);
     const modelId = compoundId.substring(sepIdx + ID_SEP.length);
     const provider = getProviders().find(p => p.id === providerId);
-    return { provider, modelId };
+    const modelConfig = provider?.models.find(m => m.id === modelId);
+    return { provider, modelConfig, modelId };
   }
 
-  /**
-   * Convert VS Code LanguageModelChatRequestMessage[] to the OpenAI messages array,
-   * including handling of ToolCalls and ToolResults.
-   */
   private convertMessages(
-    messages: readonly vscode.LanguageModelChatRequestMessage[]
-  ): Array<any> {
-    const result: any[] = [];
+    messages: readonly vscode.LanguageModelChatRequestMessage[],
+    provider: ProviderConfig
+  ): Array<Record<string, unknown>> {
+    const result: Array<Record<string, unknown>> = [];
     const toolCallIdToName: Record<string, string> = {};
+
+    if (provider.defaultSystemPrompt) {
+      result.push({ role: 'system', content: provider.defaultSystemPrompt });
+    }
 
     for (const msg of messages) {
       const role = msg.role === vscode.LanguageModelChatMessageRole.User ? 'user' : 'assistant';
 
-      let textContent = '';
-      const toolCalls: any[] = [];
-      const toolResults: any[] = [];
+      const textParts: string[] = [];
+      const imageParts: Array<Record<string, unknown>> = [];
+      const toolCalls: Array<Record<string, unknown>> = [];
+      const toolResults: Array<Record<string, unknown>> = [];
 
       for (const part of msg.content) {
         if (part instanceof vscode.LanguageModelTextPart) {
-          textContent += part.value;
+          textParts.push(part.value);
+        } else if (part instanceof vscode.LanguageModelDataPart) {
+          if (part.mimeType.startsWith('image/')) {
+            const base64 = Buffer.from(part.data).toString('base64');
+            imageParts.push({
+              type: 'image_url',
+              image_url: { url: `data:${part.mimeType};base64,${base64}` }
+            });
+          }
         } else if (part instanceof vscode.LanguageModelToolCallPart) {
           toolCallIdToName[part.callId] = part.name;
           toolCalls.push({
@@ -260,7 +280,7 @@ export class OpenAICompatChatProvider implements vscode.LanguageModelChatProvide
               try { resultStr += JSON.stringify(resPart); } catch { }
             }
           }
-          const tr: any = {
+          const tr: Record<string, unknown> = {
             role: 'tool',
             tool_call_id: part.callId,
             content: resultStr || 'Success'
@@ -272,27 +292,38 @@ export class OpenAICompatChatProvider implements vscode.LanguageModelChatProvide
         }
       }
 
-      if (toolResults.length > 0) {
-        for (const tr of toolResults) {
-          result.push(tr);
-        }
+      // Push tool results as separate messages (OpenAI format)
+      for (const tr of toolResults) {
+        result.push(tr);
       }
 
-      if (textContent || toolCalls.length > 0 || toolResults.length === 0) {
-        const apiMsg: any = { role, content: textContent || null };
+      const textContent = textParts.join('');
+      const hasContent = textContent || imageParts.length > 0;
+
+      if (hasContent || toolCalls.length > 0 || toolResults.length === 0) {
+        // Use multipart content array when images are present, plain string otherwise
+        let content: unknown;
+        if (imageParts.length > 0) {
+          const contentArray: Array<Record<string, unknown>> = [];
+          if (textContent) {
+            contentArray.push({ type: 'text', text: textContent });
+          }
+          contentArray.push(...imageParts);
+          content = contentArray;
+        } else {
+          content = textContent || null;
+        }
+
+        const apiMsg: Record<string, unknown> = { role, content };
         if (toolCalls.length > 0) {
           apiMsg.tool_calls = toolCalls;
         }
-        // Avoid pushing empty assistant messages unless necessary or if no toolResults were mapped
-        if (textContent || toolCalls.length > 0 || msg.role === vscode.LanguageModelChatMessageRole.User) {
-          // Only skip empty assistant messages
-          if (toolResults.length === 0 || textContent || toolCalls.length > 0) {
-            if (msg.role !== vscode.LanguageModelChatMessageRole.User || toolResults.length === 0) {
-              result.push(apiMsg);
-            } else if (msg.role === vscode.LanguageModelChatMessageRole.User && textContent) {
-              result.push(apiMsg);
-            }
-          }
+
+        // Skip empty assistant messages that only had tool results
+        if (hasContent || toolCalls.length > 0) {
+          result.push(apiMsg);
+        } else if (role === 'user' && toolResults.length === 0) {
+          result.push(apiMsg);
         }
       }
     }

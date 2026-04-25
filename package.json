@@ -31,6 +31,7 @@
   "activationEvents": [
     "onStartupFinished"
   ],
+  "enabledApiProposals": ["chatProvider"],
   "main": "./out/extension.js",
   "contributes": {
     "languageModelChatProviders": [
@@ -106,6 +107,11 @@
                 "default": "",
                 "description": "API key for authentication (leave empty if not required)"
               },
+              "defaultSystemPrompt": {
+                "type": "string",
+                "default": "",
+                "description": "Default system prompt injected as the first message. Leave empty to skip."
+              },
               "models": {
                 "type": "array",
                 "default": [],
@@ -136,10 +142,83 @@
                       "type": "boolean",
                       "default": true,
                       "description": "Whether the model supports tool/function calling"
+                    },
+                    "supportsVision": {
+                      "type": "boolean",
+                      "default": false,
+                      "description": "Whether the model supports vision/image input"
+                    },
+                    "extraParams": {
+                      "type": "object",
+                      "default": {},
+                      "description": "Extra parameters merged into every API request body (e.g. {\"reasoning_effort\": \"high\", \"temperature\": 0.7})"
                     }
                   }
                 }
               }
+            }
+          }
+        },
+        "openai-compat-provider.inlineCompletion": {
+          "type": "object",
+          "default": {
+            "enabled": false,
+            "providerId": "",
+            "modelId": "",
+            "maxTokens": 256,
+            "temperature": 0.01,
+            "stopSequences": ["\n\n"],
+            "debounceMs": 300,
+            "maxPrefixLines": 100,
+            "maxSuffixLines": 30
+          },
+          "description": "Inline code completion settings (ghost text / autocomplete).",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "default": false,
+              "description": "Enable inline code completion"
+            },
+            "providerId": {
+              "type": "string",
+              "default": "",
+              "description": "Provider ID to use for inline completion (must match a configured provider)"
+            },
+            "modelId": {
+              "type": "string",
+              "default": "",
+              "description": "Model ID to use for inline completion (must match a model within the provider)"
+            },
+            "maxTokens": {
+              "type": "number",
+              "default": 256,
+              "description": "Maximum tokens for completion response"
+            },
+            "temperature": {
+              "type": "number",
+              "default": 0.01,
+              "description": "Sampling temperature (lower = more deterministic)"
+            },
+            "stopSequences": {
+              "type": "array",
+              "default": ["\n\n"],
+              "items": { "type": "string" },
+              "description": "Stop sequences to end generation"
+            },
+            "debounceMs": {
+              "type": "number",
+              "default": 300,
+              "description": "Debounce delay in ms before sending request after user stops typing"
+            },
+            "maxPrefixLines": {
+              "type": "number",
+              "default": 100,
+              "description": "Max lines of context before cursor to send as prefix"
+            },
+            "maxSuffixLines": {
+              "type": "number",
+              "default": 30,
+              "description": "Max lines of context after cursor to send as suffix"
             }
           }
         }

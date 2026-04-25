@@ -148,16 +148,23 @@ async function cmdAddProvider(): Promise<void> {
 
   // ── Step 4: API Key (optional) ────────────────────────────────────────────
   const apiKey = await vscode.window.showInputBox({
-    title: 'Add Provider (4/4) – API Key',
+    title: 'Add Provider (4/5) – API Key',
     prompt: 'API key / bearer token (leave empty if not required)',
-    password: true,    // Masks the input
+    password: true,
     placeHolder: 'nvapi-xxxx…  or leave empty',
   });
-  // Undefined means the user pressed Escape – treat same as empty
   const resolvedKey = apiKey ?? '';
 
+  // ── Step 5: Default System Prompt (optional) ────────────────────────────
+  const systemPrompt = await vscode.window.showInputBox({
+    title: 'Add Provider (5/5) – Default System Prompt',
+    prompt: 'System prompt injected as the first message (leave empty to skip)',
+    placeHolder: 'You are a helpful assistant.',
+  });
+  const resolvedSystemPrompt = systemPrompt ?? '';
+
   try {
-    await addProvider(id, displayName, baseUrl, resolvedKey);
+    await addProvider(id, displayName, baseUrl, resolvedKey, resolvedSystemPrompt);
     const action = await vscode.window.showInformationMessage(
       `✅ Provider "${displayName}" added. Would you like to add a model now?`,
       'Add Model', 'Later'
@@ -263,7 +270,6 @@ async function cmdAddModel(preselectedProviderId?: string): Promise<void> {
   });
   if (!ctxStr) { return; }
 
-  // Tools support quick-pick
   const toolChoice = await vscode.window.showQuickPick(
     [
       { label: '$(check) Yes – model supports tool/function calling', value: true },
@@ -273,12 +279,23 @@ async function cmdAddModel(preselectedProviderId?: string): Promise<void> {
   );
   if (!toolChoice) { return; }
 
+  const visionChoice = await vscode.window.showQuickPick(
+    [
+      { label: '$(eye) Yes – model supports image/vision input', value: true },
+      { label: '$(close) No – text only', value: false },
+    ],
+    { placeHolder: 'Does this model support vision (image input)?' }
+  );
+  if (!visionChoice) { return; }
+
   const model: ModelConfig = {
     id: modelId.trim(),
     name: modelName.trim(),
     maxInputTokens: parseInt(ctxStr),
-    maxOutputTokens: 4096,   // Conservative default; user can edit settings.json if needed
+    maxOutputTokens: 4096,
     supportsToolCalling: toolChoice.value,
+    supportsVision: visionChoice.value,
+    extraParams: {},
   };
 
   try {
@@ -375,7 +392,7 @@ async function cmdListProviders(): Promise<void> {
         items.push({
           label: `  $(circuit-board) ${m.name}`,
           description: m.id,
-          detail: `  Input: ${m.maxInputTokens.toLocaleString()} tokens · Tools: ${m.supportsToolCalling ? 'yes' : 'no'}`,
+          detail: `  Input: ${m.maxInputTokens.toLocaleString()} tokens · Tools: ${m.supportsToolCalling ? 'yes' : 'no'} · Vision: ${m.supportsVision ? 'yes' : 'no'}`,
         });
       }
     }
