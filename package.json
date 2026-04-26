@@ -1,13 +1,13 @@
 {
   "name": "oai-provider",
-  "displayName": "OAIProvider – OpenAI-Compatible Copilot Models",
-  "description": "Connect any OpenAI-compatible API (NVIDIA NIM, Ollama, LM Studio, vLLM…) to GitHub Copilot Chat as a first-class language model provider.",
-  "version": "0.1.1",
+  "displayName": "Sigma AI Copilot",
+  "description": "Connect any OpenAI-compatible API to GitHub Copilot Chat and inline completion with vision, tool calling, system prompt, and reasoning_effort support.",
+  "version": "0.2.0",
   "publisher": "calgan",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/calganaygun/copilot-oai-provider"
+    "url": "https://github.com/yukebrillianth/sigma-ai-copilot"
   },
   "engines": {
     "vscode": "^1.99.0"
